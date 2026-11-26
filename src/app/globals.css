@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+body {
+  background: radial-gradient(ellipse at top, #1e3a8a 0%, #0f172a 55%, #020617 100%);
+  min-height: 100vh;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 1; filter: brightness(1.2); }
+  50% { opacity: 0.35; filter: brightness(0.7); }
+}
+.twinkle { animation: twinkle 1.6s ease-in-out infinite; }
+
+@keyframes star-glow {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 8px #fde047) drop-shadow(0 0 18px rgba(250, 204, 21, 0.7));
+  }
+  50% {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 16px #fef08a) drop-shadow(0 0 32px rgba(253, 224, 71, 0.95));
+  }
+}
+.star-glow {
+  animation: star-glow 2.4s ease-in-out infinite;
+  transform-origin: 200px 42px;
+}
+
+@keyframes star-halo {
+  0%, 100% { opacity: 0.45; transform: scale(0.92); }
+  50% { opacity: 0.95; transform: scale(1.22); }
+}
+.star-halo {
+  animation: star-halo 2.4s ease-in-out infinite;
+  transform-origin: 200px 42px;
+}
+
+@keyframes gift-pop {
+  0% { transform: scale(0.6) translateY(20px); opacity: 0; }
+  70% { transform: scale(1.06) translateY(-4px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); }
+}
+.gift-pop { animation: gift-pop 0.5s ease-out both; }
+
+@keyframes gift-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-4deg); }
+  75% { transform: rotate(4deg); }
+}
+.gift:hover .gift-body { animation: gift-wiggle 0.4s ease-in-out; }
+
+@layer components {
+  .input {
+    @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-red { @apply bg-red-600 text-white hover:bg-red-700; }
+  .btn-green { @apply bg-green-600 text-white hover:bg-green-700; }
+  .btn-ghost { @apply bg-slate-100 text-slate-800 hover:bg-slate-200; }
+  .card { @apply rounded-2xl bg-white/95 p-5 text-slate-900 shadow-xl backdrop-blur; }
+}

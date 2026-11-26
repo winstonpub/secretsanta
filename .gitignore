@@ -1,0 +1,16 @@
+# зависимости и сборка
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# секреты: настоящие ключи никогда не должны попадать на GitHub
+.env
+.env.*
+!.env.example
+
+# прочее
+.DS_Store
+npm-debug.log*
+.vercel

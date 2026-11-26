@@ -1,0 +1,62 @@
+# Сборка статического сайта и публикация на GitHub Pages.
+# Секреты берутся из Settings → Secrets and variables → Actions.
+# Если подключите свой домен (без /repo в адресе), замените строку
+# NEXT_PUBLIC_BASE_PATH ниже на пустое значение: NEXT_PUBLIC_BASE_PATH: ""
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check secrets
+        run: |
+          test -n "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" || (echo "::error::Нет секрета NEXT_PUBLIC_SUPABASE_URL — добавьте его по шагу 14 инструкции" && exit 1)
+          test -n "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" || (echo "::error::Нет секрета NEXT_PUBLIC_SUPABASE_ANON_KEY — добавьте его по шагу 14 инструкции" && exit 1)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            echo "::warning::В репозитории нет package-lock.json — ставлю зависимости через npm install. Закоммитьте этот файл (шаг 11 инструкции), чтобы сборки были быстрее и надёжнее."
+            npm install --no-audit --no-fund
+          fi
+      # API-маршруты не поддерживаются статическим экспортом — удаляем их:
+      # сайт работает с Supabase напрямую из браузера.
+      - run: rm -rf src/app/api
+      - run: npm run build
+        env:
+          PAGES_BUILD: "1"
+          NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
