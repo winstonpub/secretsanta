@@ -11,61 +11,52 @@ export const COLORS = [
 /** Цвета упаковки подарка: основной цвет, тёмный оттенок (крышка, ручки) и лента. */
 export const WRAP_COLORS = {
   red: { label: "Красный", box: "#dc2626", lid: "#991b1b", ribbon: "#fde047" },
-  orange: { label: "Оранжевый", box: "#f97316", lid: "#c2410c", ribbon: "#ffffff" },
-  yellow: { label: "Жёлтый", box: "#eab308", lid: "#a16207", ribbon: "#dc2626" },
+  orange: { label: "Оранжевый", box: "#ea580c", lid: "#9a3412", ribbon: "#fef3c7" },
+  yellow: { label: "Жёлтый", box: "#facc15", lid: "#ca8a04", ribbon: "#dc2626" },
   green: { label: "Зелёный", box: "#16a34a", lid: "#166534", ribbon: "#fef08a" },
   sky: { label: "Голубой", box: "#38bdf8", lid: "#0369a1", ribbon: "#ffffff" },
   blue: { label: "Синий", box: "#2563eb", lid: "#1e40af", ribbon: "#f8fafc" },
   purple: { label: "Фиолетовый", box: "#9333ea", lid: "#6b21a8", ribbon: "#fcd34d" },
   white: { label: "Белый", box: "#f8fafc", lid: "#cbd5e1", ribbon: "#dc2626" },
-  black: { label: "Чёрный", box: "#334155", lid: "#020617", ribbon: "#fde047" },
+  black: { label: "Чёрный", box: "#262626", lid: "#0a0a0a", ribbon: "#e5e7eb" },
 } as const satisfies Record<string, { label: string; box: string; lid: string; ribbon: string }>;
 
 export type WrapColor = keyof typeof WRAP_COLORS;
 export const WRAP_COLOR_KEYS = Object.keys(WRAP_COLORS) as WrapColor[];
 export type WrapStyle = "box" | "bag";
-
-/** Наполнение подарка — то, что Санта кладёт внутрь. Видно после принятия. */
-export const WRAP_FILLINGS = {
-  candy: { label: "Конфеты", hint: "Куча конфет", emoji: "🍬" },
-  toys: { label: "Игрушки", hint: "Машинки и плюшевые игрушки", emoji: "🧸" },
-  champagne: { label: "Шампанское", hint: "Бутылка шампанского", emoji: "🍾" },
-  book: { label: "Книга", hint: "Книга", emoji: "📕" },
-  mug: { label: "Кружка", hint: "Новогодняя кружка", emoji: "☕" },
-  socks: { label: "Носки", hint: "Тёплые носки", emoji: "🧦" },
-  candle: { label: "Свеча", hint: "Ароматическая свеча", emoji: "🕯️" },
-  cookies: { label: "Печенье", hint: "Новогоднее печенье", emoji: "🍪" },
-} as const satisfies Record<string, { label: string; hint: string; emoji: string }>;
-
-export type WrapFilling = keyof typeof WRAP_FILLINGS;
-export const WRAP_FILLING_KEYS = Object.keys(WRAP_FILLINGS) as WrapFilling[];
-export const DEFAULT_FILLING: WrapFilling = "candy";
-
 export type WishlistVisibility = "all" | "santa";
+
+/** Что положил Санта внутрь подарка. Показывается получателю, когда он откроет подарок. */
+export const GIFT_CONTENTS = {
+  candy: { label: "Конфеты", hint: "куча конфет" },
+  toys: { label: "Игрушки", hint: "машинки и плюшевые мишки" },
+  champagne: { label: "Шампанское", hint: "бутылка игристого" },
+  book: { label: "Книга", hint: "стопка новогодних книг" },
+  tangerines: { label: "Мандарины", hint: "сочные новогодние мандарины" },
+  gingerbread: { label: "Пряники", hint: "домашние пряничные человечки" },
+  tea: { label: "Чай", hint: "ароматный чай в кружке" },
+  ornaments: { label: "Ёлочные шары", hint: "яркие ёлочные игрушки" },
+  socks: { label: "Новогодние носки", hint: "тёплые носки с узорами" },
+} as const;
+
+export type GiftContent = keyof typeof GIFT_CONTENTS;
+export const GIFT_CONTENT_KEYS = Object.keys(GIFT_CONTENTS) as GiftContent[];
 
 export const isWrapStyle = (v: unknown): v is WrapStyle => v === "box" || v === "bag";
 export const isWrapColor = (v: unknown): v is WrapColor =>
   typeof v === "string" && Object.prototype.hasOwnProperty.call(WRAP_COLORS, v);
-export const isWrapFilling = (v: unknown): v is WrapFilling =>
-  typeof v === "string" && Object.prototype.hasOwnProperty.call(WRAP_FILLINGS, v);
+export const isGiftContent = (v: unknown): v is GiftContent =>
+  typeof v === "string" && Object.prototype.hasOwnProperty.call(GIFT_CONTENTS, v);
 export const isWishlistVisibility = (v: unknown): v is WishlistVisibility =>
   v === "all" || v === "santa";
 
-/** Старые цвета (до обновления палитры) приводим к новым ближайшим. */
-const LEGACY_WRAP_COLORS: Record<string, WrapColor> = {
-  gold: "yellow",
-  pink: "red",
-  teal: "sky",
-};
-
-export function normalizeWrapColor(v: unknown): WrapColor {
-  if (isWrapColor(v)) return v;
-  if (typeof v === "string" && LEGACY_WRAP_COLORS[v]) return LEGACY_WRAP_COLORS[v];
-  return "red";
-}
-
-export function normalizeWrapFilling(v: unknown): WrapFilling {
-  return isWrapFilling(v) ? v : DEFAULT_FILLING;
+/** Бюджет хранится цифрами. Старые значения вида «1500 ₽» тоже понимаем. */
+export function formatBudget(raw: string): { text: string; numeric: boolean } {
+  const cleaned = raw.replace(/₽|руб\.?|р\./gi, "").trim();
+  if (/^\d[\d\s]*$/.test(cleaned)) {
+    return { text: Number(cleaned.replace(/\s/g, "")).toLocaleString("ru-RU"), numeric: true };
+  }
+  return { text: cleaned, numeric: false };
 }
 
 export type PublicParticipant = {
@@ -91,13 +82,13 @@ export type GiftState = {
   recipientId: number;
   assigned: boolean;
   sent: boolean;
-  /** Получатель нажал «Принять» — под ёлкой подарок открыт. */
+  /** Получатель нажал «Принять». */
   accepted: boolean;
   /** Упаковка известна всем только после отправки. */
   style: WrapStyle | null;
   color: WrapColor | null;
-  /** Наполнение видно только после принятия подарка. */
-  filling: WrapFilling | null;
+  /** Содержимое известно всем только после принятия подарка. */
+  contents: GiftContent | null;
 };
 
 export type RoomState = {
@@ -120,7 +111,8 @@ export type RoomState = {
     sent: boolean;
     style: WrapStyle;
     color: WrapColor;
-    filling: WrapFilling;
+    /** Санта видит свой выбор всегда. */
+    contents: GiftContent;
   } | null;
   assignments: {
     id: number;

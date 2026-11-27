@@ -281,20 +281,17 @@ export async function roomAction(
           p_name: (payload.name as string | undefined) ?? null,
         }),
       );
+    case "rename":
+      return voidResult(
+        await callRpc("set_room_name", { p_code: code, p_name: String(payload.name ?? "") }),
+      );
     case "wrap":
       return voidResult(
         await callRpc("set_wrap", {
           p_code: code,
           p_style: payload.style,
           p_color: payload.color,
-          p_filling: (payload.filling as string | undefined) ?? null,
-        }),
-      );
-    case "rename":
-      return voidResult(
-        await callRpc("rename_room", {
-          p_code: code,
-          p_name: String(payload.name ?? ""),
+          p_contents: payload.contents,
         }),
       );
     case "sent":
@@ -332,15 +329,6 @@ export async function roomAction(
         await callRpc("kick_participant", {
           p_code: code,
           p_participant: Number(payload.participantId),
-        }),
-      );
-    case "add":
-      return voidResult(
-        await callRpc("add_participant", {
-          p_code: code,
-          p_name: String(payload.name ?? ""),
-          p_avatar: String(payload.avatar ?? ""),
-          p_color: String(payload.color ?? ""),
         }),
       );
     case "wishlistVisibility":

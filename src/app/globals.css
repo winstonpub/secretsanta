@@ -49,12 +49,6 @@ body {
 }
 .gift:hover .gift-body { animation: gift-wiggle 0.4s ease-in-out; }
 
-@keyframes roulette-in {
-  0% { transform: translateY(-14px) scale(0.96); opacity: 0.4; }
-  100% { transform: translateY(0) scale(1); opacity: 1; }
-}
-.roulette-item { animation: roulette-in 0.12s ease-out both; }
-
 @layer components {
   .input {
     @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200;

@@ -107,12 +107,19 @@ alter table public.assignments
   add column if not exists wrap_style text not null default 'box',
   add column if not exists wrap_color text not null default 'red';
 
--- Наполнение подарка (что Санта кладёт внутрь) появилось позже:
-alter table public.assignments
-  add column if not exists wrap_filling text not null default 'candy';
-
 -- Отметка «подарок принят» появилась позже:
 alter table public.assignments add column if not exists accepted boolean not null default false;
+
+-- Упаковка 2.0: новые цвета (жёлтый, оранжевый, голубой, чёрный) и наполнение подарка.
+-- Старые цвета переименовываются автоматически: золотой → жёлтый, розовый → фиолетовый,
+-- бирюзовый → зелёный. Данные комнат не теряются.
+alter table public.assignments add column if not exists wrap_contents text not null default 'candy';
+update public.assignments set wrap_color = case wrap_color
+    when 'gold' then 'yellow'
+    when 'pink' then 'purple'
+    when 'teal' then 'green'
+  end
+  where wrap_color in ('gold', 'pink', 'teal');
 
 -- ВАЖНО. Прямой доступ к таблицам через Supabase API закрыт для всех:
 -- защита строк включена, разрешающих правил нет. Сайт работает только через
@@ -146,34 +153,25 @@ language sql immutable set search_path = public as $$
     then p_color else '#ef4444' end
 $$;
 
--- Приведение цвета и наполнения к допустимым значениям.
--- Старые цвета (gold, pink, teal) остались в прежних комнатах —
--- показываем их ближайшими новыми, чтобы подарки не ломались.
-create or replace function public._norm_wrap_color(p_color text)
+-- Упаковка: значения вне списка заменяются на обычные (защита от подмены в запросе).
+create or replace function public._clean_wrap_style(p_style text)
 returns text
 language sql immutable set search_path = public as $$
-  select case p_color
-    when 'gold' then 'yellow'
-    when 'pink' then 'red'
-    when 'teal' then 'sky'
-    when 'red' then 'red'
-    when 'orange' then 'orange'
-    when 'yellow' then 'yellow'
-    when 'green' then 'green'
-    when 'sky' then 'sky'
-    when 'blue' then 'blue'
-    when 'purple' then 'purple'
-    when 'white' then 'white'
-    when 'black' then 'black'
-    else 'red' end
+  select case when p_style in ('box', 'bag') then p_style else 'box' end
 $$;
 
-create or replace function public._norm_wrap_filling(p_filling text)
+create or replace function public._clean_wrap_color(p_color text)
 returns text
 language sql immutable set search_path = public as $$
-  select case
-    when p_filling in ('candy', 'toys', 'champagne', 'book', 'mug', 'socks', 'candle', 'cookies')
-    then p_filling else 'candy' end
+  select case when p_color in ('red', 'orange', 'yellow', 'green', 'sky', 'blue', 'purple', 'white', 'black')
+    then p_color else 'red' end
+$$;
+
+create or replace function public._clean_contents(p_contents text)
+returns text
+language sql immutable set search_path = public as $$
+  select case when p_contents in ('candy', 'toys', 'champagne', 'book', 'tangerines', 'gingerbread', 'tea', 'ornaments', 'socks')
+    then p_contents else 'candy' end
 $$;
 
 -- Случайная строка для технического поля token (без расширений).
@@ -316,7 +314,7 @@ $$;
 
 -- Всё состояние комнаты для текущего пользователя.
 -- Пожелания скрыты по настройке комнаты, чужие пары не отдаются никому,
--- кроме организатора, упаковка видна только у отправленных подарков.
+-- кроме организатора. Упаковка видна после отправки, содержимое — после принятия.
 create or replace function public.get_room_state(p_code text)
 returns jsonb
 language plpgsql
@@ -371,13 +369,10 @@ begin
           'assigned', a.id is not null,
           'sent', coalesce(a.sent, false),
           'accepted', coalesce(a.sent, false) and coalesce(a.accepted, false),
-          'style', case when coalesce(a.sent, false)
-            then (case when a.wrap_style in ('box', 'bag') then a.wrap_style else 'box' end) end,
-          'color', case when coalesce(a.sent, false)
-            then public._norm_wrap_color(a.wrap_color) end,
-          'filling', case
-            when coalesce(a.sent, false) and coalesce(a.accepted, false)
-            then public._norm_wrap_filling(a.wrap_filling) end)
+          'style', case when coalesce(a.sent, false) then public._clean_wrap_style(a.wrap_style) end,
+          'color', case when coalesce(a.sent, false) then public._clean_wrap_color(a.wrap_color) end,
+          'contents', case when coalesce(a.sent, false) and coalesce(a.accepted, false)
+            then public._clean_contents(a.wrap_contents) end)
         order by p.created_at, p.id)
       from public.participants p
       left join public.assignments a on a.room_id = v_room_id and a.recipient_id = p.id
@@ -390,9 +385,9 @@ begin
             'id', t.id, 'name', t.name, 'avatar', t.avatar,
             'color', t.color, 'wishlist', t.wishlist),
           'sent', a.sent,
-          'style', case when a.wrap_style in ('box', 'bag') then a.wrap_style else 'box' end,
-          'color', public._norm_wrap_color(a.wrap_color),
-          'filling', public._norm_wrap_filling(a.wrap_filling))
+          'style', public._clean_wrap_style(a.wrap_style),
+          'color', public._clean_wrap_color(a.wrap_color),
+          'contents', public._clean_contents(a.wrap_contents))
       from public.assignments a
       join public.participants t on t.id = a.recipient_id
       where a.room_id = v_room_id and a.santa_id = v_me
@@ -491,7 +486,10 @@ begin
 end;
 $$;
 
--- Свои пожелания (всегда), имя и внешний вид (если переданы).
+-- Свои пожелания, имя, аватар и цвет в этой комнате.
+-- Если переданы только пожелания — меняются только они.
+drop function if exists public.update_profile(text, text, text, text);
+drop function if exists public.add_participant(text, text, text, text);
 create or replace function public.update_profile(
   p_code text,
   p_wishlist text,
@@ -509,7 +507,9 @@ declare
   v_room_id int := (v_ctx ->> 'roomId')::int;
   v_me int := (v_ctx ->> 'meId')::int;
   v_wish text := left(coalesce(p_wishlist, ''), 1000);
-  v_cur public.participants%rowtype;
+  v_old_name text;
+  v_old_avatar text;
+  v_old_color text;
   v_name text;
   v_avatar text;
   v_color text;
@@ -522,20 +522,11 @@ begin
     update public.participants set wishlist = v_wish where id = v_me;
     return jsonb_build_object('ok', true);
   end if;
-  select * into v_cur from public.participants where id = v_me;
-  -- Имя можно менять свободно; если не передано — оставляем текущее.
-  v_name := case
-    when p_name is null then v_cur.name
-    else left(trim(p_name), 40) end;
-  if v_name = '' then
-    raise exception 'Укажите имя';
-  end if;
-  v_avatar := case
-    when p_avatar is null then v_cur.avatar
-    else public._clean_avatar(p_avatar) end;
-  v_color := case
-    when p_color is null then v_cur.color
-    else public._clean_color(p_color) end;
+  select name, avatar, color into v_old_name, v_old_avatar, v_old_color
+    from public.participants where id = v_me;
+  v_name := left(coalesce(nullif(trim(p_name), ''), v_old_name), 40);
+  v_avatar := public._clean_avatar(coalesce(p_avatar, v_old_avatar));
+  v_color := public._clean_color(coalesce(p_color, v_old_color));
   select exists(
     select 1 from public.participants
     where room_id = v_room_id and id <> v_me
@@ -547,19 +538,19 @@ begin
     raise exception 'Такой пользователь уже есть в комнате. Как минимум должен отличаться аватар, цвет или имя пользователя.';
   end if;
   update public.participants
-    set name = left(v_name, 40), avatar = v_avatar, color = v_color, wishlist = v_wish
+    set name = v_name, avatar = v_avatar, color = v_color, wishlist = v_wish
     where id = v_me;
   return jsonb_build_object('ok', true);
 end;
 $$;
 
--- Упаковка своего подарка (вид, цвет и наполнение выбирает Санта).
--- Наполнение необязательное: старые клиенты его не передают — тогда не меняем.
+-- Упаковка и содержимое своего подарка (выбирает Санта).
+drop function if exists public.set_wrap(text, text, text);
 create or replace function public.set_wrap(
   p_code text,
   p_style text,
   p_color text,
-  p_filling text default null
+  p_contents text
 )
 returns jsonb
 language plpgsql
@@ -568,27 +559,18 @@ set search_path = public
 as $$
 declare
   v_ctx jsonb := public._room_ctx(p_code);
-  v_color text;
   v_n int;
 begin
   if (v_ctx ->> 'meId') is null then
     raise exception 'Сначала присоединитесь к комнате';
   end if;
-  -- Старые цвета принимаем и приводим к новым (см. _norm_wrap_color).
-  v_color := public._norm_wrap_color(p_color);
-  if p_style not in ('box', 'bag')
-    or (p_color not in ('red', 'orange', 'yellow', 'green', 'sky', 'blue', 'purple', 'white', 'black',
-        'gold', 'pink', 'teal')) then
+  if public._clean_wrap_style(p_style) is distinct from p_style
+    or public._clean_wrap_color(p_color) is distinct from p_color
+    or public._clean_contents(p_contents) is distinct from p_contents then
     raise exception 'Неизвестная упаковка';
   end if;
-  if p_filling is not null
-    and p_filling not in ('candy', 'toys', 'champagne', 'book', 'mug', 'socks', 'candle', 'cookies') then
-    raise exception 'Неизвестное наполнение';
-  end if;
   update public.assignments
-    set wrap_style = p_style,
-        wrap_color = v_color,
-        wrap_filling = coalesce(p_filling, wrap_filling)
+    set wrap_style = p_style, wrap_color = p_color, wrap_contents = p_contents
     where room_id = (v_ctx ->> 'roomId')::int
       and santa_id = (v_ctx ->> 'meId')::int;
   get diagnostics v_n = row_count;
@@ -865,80 +847,6 @@ begin
 end;
 $$;
 
--- Добавить участника вручную (без профиля — подарок ему вручат лично).
-create or replace function public.add_participant(
-  p_code text,
-  p_name text,
-  p_avatar text,
-  p_color text
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_ctx jsonb := public._room_ctx(p_code);
-  v_room_id int := (v_ctx ->> 'roomId')::int;
-  v_name text := left(trim(p_name), 40);
-  v_avatar text := public._clean_avatar(p_avatar);
-  v_color text := public._clean_color(p_color);
-  v_dup boolean;
-begin
-  if (v_ctx ->> 'meId') is null then
-    raise exception 'Сначала присоединитесь к комнате';
-  end if;
-  if not (v_ctx ->> 'isOwner')::boolean then
-    raise exception 'Только организатор может это сделать';
-  end if;
-  if v_name = '' then
-    raise exception 'Укажите имя участника';
-  end if;
-  select exists(
-    select 1 from public.participants
-    where room_id = v_room_id
-      and lower(name) = lower(v_name)
-      and avatar = v_avatar
-      and color = v_color
-  ) into v_dup;
-  if v_dup then
-    raise exception 'Такой пользователь уже есть в комнате. Как минимум должен отличаться аватар, цвет или имя пользователя.';
-  end if;
-  insert into public.participants (room_id, name, avatar, color, token)
-    values (v_room_id, v_name, v_avatar, v_color, public._rand_token());
-  return jsonb_build_object('ok', true);
-end;
-$$;
-
--- Новое название комнаты. Может менять только организатор.
-create or replace function public.rename_room(
-  p_code text,
-  p_name text
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_ctx jsonb := public._room_ctx(p_code);
-  v_name text := left(trim(coalesce(p_name, '')), 60);
-begin
-  if (v_ctx ->> 'meId') is null then
-    raise exception 'Сначала присоединитесь к комнате';
-  end if;
-  if not (v_ctx ->> 'isOwner')::boolean then
-    raise exception 'Только организатор может это сделать';
-  end if;
-  if v_name = '' then
-    raise exception 'Укажите название комнаты';
-  end if;
-  update public.rooms
-    set name = v_name
-    where id = (v_ctx ->> 'roomId')::int;
-  return jsonb_build_object('ok', true);
-end;
-$$;
 
 -- Кто видит пожелания на подарке: все участники или только Санта.
 create or replace function public.set_wishlist_visibility(
@@ -965,6 +873,31 @@ begin
   update public.rooms
     set wishlist_visibility = p_value
     where id = (v_ctx ->> 'roomId')::int;
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+-- Название комнаты может поменять только организатор.
+create or replace function public.set_room_name(p_code text, p_name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ctx jsonb := public._room_ctx(p_code);
+  v_name text := left(trim(coalesce(p_name, '')), 60);
+begin
+  if (v_ctx ->> 'meId') is null then
+    raise exception 'Сначала присоединитесь к комнате';
+  end if;
+  if not (v_ctx ->> 'isOwner')::boolean then
+    raise exception 'Только организатор может это сделать';
+  end if;
+  if v_name = '' then
+    raise exception 'Укажите название комнаты';
+  end if;
+  update public.rooms set name = v_name where id = (v_ctx ->> 'roomId')::int;
   return jsonb_build_object('ok', true);
 end;
 $$;

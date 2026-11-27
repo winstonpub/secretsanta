@@ -1,11 +1,11 @@
 import Avatar from "./Avatar";
 import GiftArt from "./GiftArt";
 import {
+  GIFT_CONTENTS,
   WRAP_COLORS,
   WRAP_COLOR_KEYS,
-  WRAP_FILLINGS,
+  type GiftContent,
   type WrapColor,
-  type WrapFilling,
   type WrapStyle,
 } from "@/lib/constants";
 
@@ -17,13 +17,13 @@ export type GiftProps = {
   avatar: string;
   color: string;
   sent: boolean;
-  /** Получатель нажал «Принять»: подарок открыт, видно наполнение, рамка зелёная. */
+  /** Получатель нажал «Принять»: подарок открыт, рамка имени зелёная. */
   accepted?: boolean;
   /** Упаковка, выбранная Сантой (есть только у отправленного подарка). */
   wrapStyle?: WrapStyle | null;
   wrapColor?: WrapColor | null;
-  /** Наполнение, выбранное Сантой (видно только после принятия). */
-  wrapFilling?: WrapFilling | null;
+  /** Содержимое — видно только после принятия подарка. */
+  contents?: GiftContent | null;
   scale?: number;
   highlight?: "target" | "mine" | null;
   onClick?: () => void;
@@ -38,17 +38,17 @@ export default function Gift({
   accepted = false,
   wrapStyle,
   wrapColor,
-  wrapFilling,
+  contents = null,
   scale = 1,
   highlight = null,
   onClick,
 }: GiftProps) {
   const kind = !sent ? "mystery" : wrapStyle === "bag" ? "bag" : "box";
   const fill = wrapColor ?? WRAP_COLOR_KEYS[index % WRAP_COLOR_KEYS.length];
-  const filling = wrapFilling ?? "candy";
   const width = (kind === "bag" ? 78 : BOX_WIDTHS[index % BOX_WIDTHS.length]) * scale;
   const tilt = ((index * 37) % 7) - 3;
   const look = kind === "bag" ? "подарочный пакет" : "подарок";
+  const colorName = WRAP_COLORS[fill].label.toLowerCase();
 
   return (
     <button
@@ -56,9 +56,9 @@ export default function Gift({
       onClick={onClick}
       title={
         accepted
-          ? `Для ${name}: ${look}, ${WRAP_COLORS[fill].label.toLowerCase()} — подарок получен, внутри: ${WRAP_FILLINGS[filling].label.toLowerCase()}`
+          ? `Для ${name}: ${look}, ${colorName} — подарок принят${contents ? `, внутри: ${GIFT_CONTENTS[contents].label.toLowerCase()}` : ""}`
           : sent
-            ? `Для ${name}: ${look}, ${WRAP_COLORS[fill].label.toLowerCase()} — отправлен 🎉`
+            ? `Для ${name}: ${look}, ${colorName} — отправлен 🎉`
             : `Подарок для ${name} — ещё не отправлен`
       }
       className="gift gift-pop relative flex flex-col items-center focus:outline-none"
@@ -73,7 +73,14 @@ export default function Gift({
             : "drop-shadow(0 6px 6px rgba(0,0,0,0.35))",
         }}
       >
-        <GiftArt kind={kind} color={fill} width={width} variant={index} opened={accepted} filling={filling} />
+        <GiftArt
+          kind={kind}
+          color={fill}
+          width={width}
+          variant={index}
+          opened={accepted}
+          contents={contents}
+        />
       </div>
 
       {/* бирка с аватаркой и именем получателя */}
@@ -88,8 +95,8 @@ export default function Gift({
         <Avatar avatar={avatar} color={color} size={Math.max(18, 22 * scale)} className="ring-1" />
         <span className="truncate font-semibold">{name}</span>
         {accepted ? (
-          <span className="shrink-0" title="Подарок получен">
-            {WRAP_FILLINGS[filling].emoji}
+          <span className="shrink-0 text-emerald-700" title="Подарок принят">
+            ✓
           </span>
         ) : (
           sent && <span className="text-green-600">✓</span>

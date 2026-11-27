@@ -20,11 +20,11 @@ const demo = [
 ];
 
 const demoGifts: GiftState[] = [
-  { recipientId: 1, assigned: true, sent: true, accepted: true, style: "bag", color: "yellow", filling: "candy" },
-  { recipientId: 2, assigned: true, sent: false, accepted: false, style: null, color: null, filling: null },
-  { recipientId: 3, assigned: true, sent: true, accepted: false, style: "box", color: "red", filling: null },
-  { recipientId: 4, assigned: true, sent: false, accepted: false, style: null, color: null, filling: null },
-  { recipientId: 5, assigned: true, sent: true, accepted: true, style: "box", color: "blue", filling: "toys" },
+  { recipientId: 1, assigned: true, sent: true, accepted: true, style: "bag", color: "yellow", contents: "candy" },
+  { recipientId: 2, assigned: true, sent: false, accepted: false, style: null, color: null, contents: null },
+  { recipientId: 3, assigned: true, sent: true, accepted: false, style: "box", color: "red", contents: null },
+  { recipientId: 4, assigned: true, sent: false, accepted: false, style: null, color: null, contents: null },
+  { recipientId: 5, assigned: true, sent: true, accepted: true, style: "box", color: "blue", contents: "champagne" },
 ];
 
 type Recent = { code: string; name: string };
@@ -137,13 +137,19 @@ export default function Home() {
                 maxLength={60}
                 onChange={(e) => setRoomName(e.target.value)}
               />
-              <input
-                className="input"
-                placeholder="Бюджет, напр. 1500 ₽"
-                value={budget}
-                maxLength={40}
-                onChange={(e) => setBudget(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  className="input pr-10"
+                  inputMode="numeric"
+                  placeholder="Бюджет, например 1500"
+                  value={budget}
+                  maxLength={9}
+                  onChange={(e) => setBudget(e.target.value.replace(/\D/g, ""))}
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center font-semibold text-slate-500">
+                  ₽
+                </span>
+              </div>
               <div className="border-t pt-4">
                 <div className="mb-2 text-sm font-semibold text-slate-600">
                   Вы — организатор комнаты
