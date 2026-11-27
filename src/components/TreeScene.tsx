@@ -1,5 +1,5 @@
 import Gift from "./Gift";
-import type { PublicParticipant, WrapColor, WrapStyle } from "@/lib/constants";
+import type { PublicParticipant, WrapColor, WrapFilling, WrapStyle } from "@/lib/constants";
 
 type GiftItem = {
   recipientId: number;
@@ -7,6 +7,7 @@ type GiftItem = {
   accepted?: boolean;
   style?: WrapStyle | null;
   color?: WrapColor | null;
+  filling?: WrapFilling | null;
 };
 
 const ORNAMENTS: [number, number, string][] = [
@@ -50,6 +51,7 @@ export default function TreeScene({
   const n = gifts.length;
   const scale = n <= 6 ? 1 : n <= 12 ? 0.85 : n <= 20 ? 0.72 : 0.6;
   const sentCount = gifts.filter((g) => g.sent).length;
+  const acceptedCount = gifts.filter((g) => g.sent && g.accepted).length;
 
   return (
     <div className="relative z-30 mx-auto w-full max-w-3xl select-none overflow-visible">
@@ -134,6 +136,7 @@ export default function TreeScene({
                   accepted={g.accepted}
                   wrapStyle={g.style}
                   wrapColor={g.color}
+                  wrapFilling={g.filling}
                   scale={scale}
                   highlight={g.recipientId === targetId ? "target" : g.recipientId === meId ? "mine" : null}
                   onClick={onGiftClick ? () => onGiftClick(g.recipientId) : undefined}
@@ -144,9 +147,14 @@ export default function TreeScene({
         )}
       </div>
       {n > 0 && (
-        <p className="mt-3 text-center text-sm text-blue-100/80">
-          Отправлено подарков: <b className="text-white">{sentCount}</b> из {n}
-        </p>
+        <div className="mt-3 space-y-1 text-center text-sm text-blue-100/80">
+          <p>
+            Отправлено подарков: <b className="text-white">{sentCount}</b> из {n}
+          </p>
+          <p>
+            Получено подарков: <b className="text-white">{acceptedCount}</b> из {n}
+          </p>
+        </div>
       )}
     </div>
   );

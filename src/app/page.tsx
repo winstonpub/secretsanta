@@ -20,11 +20,11 @@ const demo = [
 ];
 
 const demoGifts: GiftState[] = [
-  { recipientId: 1, assigned: true, sent: true, accepted: true, style: "bag", color: "gold" },
-  { recipientId: 2, assigned: true, sent: false, accepted: false, style: null, color: null },
-  { recipientId: 3, assigned: true, sent: true, accepted: false, style: "box", color: "red" },
-  { recipientId: 4, assigned: true, sent: false, accepted: false, style: null, color: null },
-  { recipientId: 5, assigned: true, sent: true, accepted: true, style: "box", color: "blue" },
+  { recipientId: 1, assigned: true, sent: true, accepted: true, style: "bag", color: "yellow", filling: "candy" },
+  { recipientId: 2, assigned: true, sent: false, accepted: false, style: null, color: null, filling: null },
+  { recipientId: 3, assigned: true, sent: true, accepted: false, style: "box", color: "red", filling: null },
+  { recipientId: 4, assigned: true, sent: false, accepted: false, style: null, color: null, filling: null },
+  { recipientId: 5, assigned: true, sent: true, accepted: true, style: "box", color: "blue", filling: "toys" },
 ];
 
 type Recent = { code: string; name: string };

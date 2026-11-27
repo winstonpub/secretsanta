@@ -107,6 +107,10 @@ alter table public.assignments
   add column if not exists wrap_style text not null default 'box',
   add column if not exists wrap_color text not null default 'red';
 
+-- Наполнение подарка (что Санта кладёт внутрь) появилось позже:
+alter table public.assignments
+  add column if not exists wrap_filling text not null default 'candy';
+
 -- Отметка «подарок принят» появилась позже:
 alter table public.assignments add column if not exists accepted boolean not null default false;
 
@@ -140,6 +144,36 @@ language sql immutable set search_path = public as $$
   select case
     when p_color = any (array['#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899','#64748b','#a16207'])
     then p_color else '#ef4444' end
+$$;
+
+-- Приведение цвета и наполнения к допустимым значениям.
+-- Старые цвета (gold, pink, teal) остались в прежних комнатах —
+-- показываем их ближайшими новыми, чтобы подарки не ломались.
+create or replace function public._norm_wrap_color(p_color text)
+returns text
+language sql immutable set search_path = public as $$
+  select case p_color
+    when 'gold' then 'yellow'
+    when 'pink' then 'red'
+    when 'teal' then 'sky'
+    when 'red' then 'red'
+    when 'orange' then 'orange'
+    when 'yellow' then 'yellow'
+    when 'green' then 'green'
+    when 'sky' then 'sky'
+    when 'blue' then 'blue'
+    when 'purple' then 'purple'
+    when 'white' then 'white'
+    when 'black' then 'black'
+    else 'red' end
+$$;
+
+create or replace function public._norm_wrap_filling(p_filling text)
+returns text
+language sql immutable set search_path = public as $$
+  select case
+    when p_filling in ('candy', 'toys', 'champagne', 'book', 'mug', 'socks', 'candle', 'cookies')
+    then p_filling else 'candy' end
 $$;
 
 -- Случайная строка для технического поля token (без расширений).
@@ -340,8 +374,10 @@ begin
           'style', case when coalesce(a.sent, false)
             then (case when a.wrap_style in ('box', 'bag') then a.wrap_style else 'box' end) end,
           'color', case when coalesce(a.sent, false)
-            then (case when a.wrap_color in ('red', 'green', 'blue', 'purple', 'gold', 'pink', 'teal', 'white')
-              then a.wrap_color else 'red' end) end)
+            then public._norm_wrap_color(a.wrap_color) end,
+          'filling', case
+            when coalesce(a.sent, false) and coalesce(a.accepted, false)
+            then public._norm_wrap_filling(a.wrap_filling) end)
         order by p.created_at, p.id)
       from public.participants p
       left join public.assignments a on a.room_id = v_room_id and a.recipient_id = p.id
@@ -355,8 +391,8 @@ begin
             'color', t.color, 'wishlist', t.wishlist),
           'sent', a.sent,
           'style', case when a.wrap_style in ('box', 'bag') then a.wrap_style else 'box' end,
-          'color', case when a.wrap_color in ('red', 'green', 'blue', 'purple', 'gold', 'pink', 'teal', 'white')
-            then a.wrap_color else 'red' end)
+          'color', public._norm_wrap_color(a.wrap_color),
+          'filling', public._norm_wrap_filling(a.wrap_filling))
       from public.assignments a
       join public.participants t on t.id = a.recipient_id
       where a.room_id = v_room_id and a.santa_id = v_me
@@ -455,12 +491,13 @@ begin
 end;
 $$;
 
--- Свои пожелания (всегда) и свой внешний вид (если переданы аватар/цвет).
+-- Свои пожелания (всегда), имя и внешний вид (если переданы).
 create or replace function public.update_profile(
   p_code text,
   p_wishlist text,
   p_avatar text default null,
-  p_color text default null
+  p_color text default null,
+  p_name text default null
 )
 returns jsonb
 language plpgsql
@@ -472,6 +509,7 @@ declare
   v_room_id int := (v_ctx ->> 'roomId')::int;
   v_me int := (v_ctx ->> 'meId')::int;
   v_wish text := left(coalesce(p_wishlist, ''), 1000);
+  v_cur public.participants%rowtype;
   v_name text;
   v_avatar text;
   v_color text;
@@ -480,16 +518,24 @@ begin
   if v_me is null then
     raise exception 'Сначала присоединитесь к комнате';
   end if;
-  if p_avatar is null and p_color is null then
+  if p_avatar is null and p_color is null and p_name is null then
     update public.participants set wishlist = v_wish where id = v_me;
     return jsonb_build_object('ok', true);
   end if;
-  -- Имя участника с профилем всегда совпадает с именем профиля.
-  select case when profile_id is not null then (v_ctx ->> 'displayName') else name end
-    into v_name
-    from public.participants where id = v_me;
-  v_avatar := public._clean_avatar(p_avatar);
-  v_color := public._clean_color(p_color);
+  select * into v_cur from public.participants where id = v_me;
+  -- Имя можно менять свободно; если не передано — оставляем текущее.
+  v_name := case
+    when p_name is null then v_cur.name
+    else left(trim(p_name), 40) end;
+  if v_name = '' then
+    raise exception 'Укажите имя';
+  end if;
+  v_avatar := case
+    when p_avatar is null then v_cur.avatar
+    else public._clean_avatar(p_avatar) end;
+  v_color := case
+    when p_color is null then v_cur.color
+    else public._clean_color(p_color) end;
   select exists(
     select 1 from public.participants
     where room_id = v_room_id and id <> v_me
@@ -507,11 +553,13 @@ begin
 end;
 $$;
 
--- Упаковка своего подарка (вид и цвет выбирает Санта).
+-- Упаковка своего подарка (вид, цвет и наполнение выбирает Санта).
+-- Наполнение необязательное: старые клиенты его не передают — тогда не меняем.
 create or replace function public.set_wrap(
   p_code text,
   p_style text,
-  p_color text
+  p_color text,
+  p_filling text default null
 )
 returns jsonb
 language plpgsql
@@ -520,17 +568,27 @@ set search_path = public
 as $$
 declare
   v_ctx jsonb := public._room_ctx(p_code);
+  v_color text;
   v_n int;
 begin
   if (v_ctx ->> 'meId') is null then
     raise exception 'Сначала присоединитесь к комнате';
   end if;
+  -- Старые цвета принимаем и приводим к новым (см. _norm_wrap_color).
+  v_color := public._norm_wrap_color(p_color);
   if p_style not in ('box', 'bag')
-    or p_color not in ('red', 'green', 'blue', 'purple', 'gold', 'pink', 'teal', 'white') then
+    or (p_color not in ('red', 'orange', 'yellow', 'green', 'sky', 'blue', 'purple', 'white', 'black',
+        'gold', 'pink', 'teal')) then
     raise exception 'Неизвестная упаковка';
   end if;
+  if p_filling is not null
+    and p_filling not in ('candy', 'toys', 'champagne', 'book', 'mug', 'socks', 'candle', 'cookies') then
+    raise exception 'Неизвестное наполнение';
+  end if;
   update public.assignments
-    set wrap_style = p_style, wrap_color = p_color
+    set wrap_style = p_style,
+        wrap_color = v_color,
+        wrap_filling = coalesce(p_filling, wrap_filling)
     where room_id = (v_ctx ->> 'roomId')::int
       and santa_id = (v_ctx ->> 'meId')::int;
   get diagnostics v_n = row_count;
@@ -848,6 +906,36 @@ begin
   end if;
   insert into public.participants (room_id, name, avatar, color, token)
     values (v_room_id, v_name, v_avatar, v_color, public._rand_token());
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+-- Новое название комнаты. Может менять только организатор.
+create or replace function public.rename_room(
+  p_code text,
+  p_name text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ctx jsonb := public._room_ctx(p_code);
+  v_name text := left(trim(coalesce(p_name, '')), 60);
+begin
+  if (v_ctx ->> 'meId') is null then
+    raise exception 'Сначала присоединитесь к комнате';
+  end if;
+  if not (v_ctx ->> 'isOwner')::boolean then
+    raise exception 'Только организатор может это сделать';
+  end if;
+  if v_name = '' then
+    raise exception 'Укажите название комнаты';
+  end if;
+  update public.rooms
+    set name = v_name
+    where id = (v_ctx ->> 'roomId')::int;
   return jsonb_build_object('ok', true);
 end;
 $$;

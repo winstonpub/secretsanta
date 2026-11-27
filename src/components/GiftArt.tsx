@@ -1,4 +1,4 @@
-import { WRAP_COLORS, type WrapColor } from "@/lib/constants";
+import { WRAP_COLORS, type WrapColor, type WrapFilling } from "@/lib/constants";
 
 type Palette = { box: string; lid: string; ribbon: string };
 const GREY: Palette = { box: "#9ca3af", lid: "#6b7280", ribbon: "#d1d5db" };
@@ -9,7 +9,8 @@ const CANDY_COLORS = ["#ef4444", "#facc15", "#22c55e", "#3b82f6", "#ec4899", "#f
 /**
  * Рисунок подарка: «box» — коробка с бантом, «bag» — новогодний подарочный пакет,
  * «mystery» — серая коробка со знаком вопроса (подарок ещё не отправлен).
- * opened — получатель нажал «Принять»: крышка съезжает вбок, из подарка торчат конфеты.
+ * opened — получатель нажал «Принять»: коробка открыта, внутри лежит наполнение,
+ * которое выбрал Санта (конфеты, игрушки и т.д.).
  */
 export default function GiftArt({
   kind,
@@ -17,6 +18,7 @@ export default function GiftArt({
   width,
   variant = 0,
   opened = false,
+  filling = "candy",
 }: {
   kind: "box" | "bag" | "mystery";
   color?: WrapColor;
@@ -24,12 +26,20 @@ export default function GiftArt({
   /** Для коробок: немного разная высота, чтобы груда подарков выглядела живой. */
   variant?: number;
   opened?: boolean;
+  filling?: WrapFilling;
 }) {
   const pal: Palette = kind === "mystery" ? GREY : (WRAP_COLORS[color] ?? WRAP_COLORS.red);
   return kind === "bag" ? (
-    <Bag pal={pal} width={width} opened={opened} />
+    <Bag pal={pal} width={width} opened={opened} filling={filling} />
   ) : (
-    <Box pal={pal} width={width} variant={variant} mystery={kind === "mystery"} opened={opened} />
+    <Box
+      pal={pal}
+      width={width}
+      variant={variant}
+      mystery={kind === "mystery"}
+      opened={opened}
+      filling={filling}
+    />
   );
 }
 
@@ -83,6 +93,178 @@ function CandyPile({ cx, baseY }: { cx: number; baseY: number }) {
   );
 }
 
+/** Плюшевый мишка и машинка. */
+function ToysPile({ cx, baseY }: { cx: number; baseY: number }) {
+  const bx = cx - 16;
+  const carX = cx + 1;
+  return (
+    <g>
+      {/* мишка */}
+      <circle cx={bx - 5} cy={baseY - 21} r={3.2} fill="#92400e" />
+      <circle cx={bx + 5} cy={baseY - 21} r={3.2} fill="#92400e" />
+      <circle cx={bx - 5} cy={baseY - 21} r={1.4} fill="#fde68a" />
+      <circle cx={bx + 5} cy={baseY - 21} r={1.4} fill="#fde68a" />
+      <ellipse cx={bx} cy={baseY - 4} rx={8.5} ry={7} fill="#b45309" />
+      <circle cx={bx} cy={baseY - 16} r={7} fill="#b45309" />
+      <ellipse cx={bx} cy={baseY - 13.5} rx={3.2} ry={2.6} fill="#fde68a" />
+      <circle cx={bx - 1} cy={baseY - 14.5} r={0.9} fill="#451a03" />
+      <circle cx={bx - 2.8} cy={baseY - 17.5} r={1} fill="#1f2937" />
+      <circle cx={bx + 2.8} cy={baseY - 17.5} r={1} fill="#1f2937" />
+      <rect x={bx - 8} y={baseY - 7} width={16} height={3.4} rx={1.7} fill="#dc2626" />
+      {/* машинка */}
+      <rect x={carX} y={baseY - 13} width={30} height={9} rx={2.5} fill="#ef4444" stroke={SHADOW} />
+      <rect x={carX + 7} y={baseY - 20} width={15} height={8} rx={1.5} fill="#ef4444" stroke={SHADOW} />
+      <rect x={carX + 9} y={baseY - 18.5} width={11} height={5} rx={1} fill="#bae6fd" />
+      <circle cx={carX + 7} cy={baseY - 3} r={4.2} fill="#1f2937" />
+      <circle cx={carX + 23} cy={baseY - 3} r={4.2} fill="#1f2937" />
+      <circle cx={carX + 7} cy={baseY - 3} r={1.5} fill="#9ca3af" />
+      <circle cx={carX + 23} cy={baseY - 3} r={1.5} fill="#9ca3af" />
+    </g>
+  );
+}
+
+/** Бутылка шампанского. */
+function ChampagneBottle({ cx, baseY }: { cx: number; baseY: number }) {
+  return (
+    <g>
+      <rect x={cx - 8} y={baseY - 18} width={16} height={18} rx={2.5} fill="#166534" stroke={SHADOW} />
+      <path
+        d={`M ${cx - 8} ${baseY - 18} L ${cx - 3.5} ${baseY - 24} L ${cx + 3.5} ${baseY - 24} L ${cx + 8} ${baseY - 18} Z`}
+        fill="#166534"
+      />
+      <rect x={cx - 3.5} y={baseY - 28} width={7} height={5} fill="#166534" />
+      <rect x={cx - 4} y={baseY - 31} width={8} height={4.5} rx={1} fill="#facc15" stroke={SHADOW} strokeWidth="0.6" />
+      <rect x={cx - 8} y={baseY - 12} width={16} height={7} fill="#fefce8" />
+      <rect x={cx - 8} y={baseY - 12} width={16} height={2} fill="#dc2626" />
+      <rect x={cx - 6} y={baseY - 17} width={2} height={15} rx={1} fill="#fff" opacity="0.3" />
+    </g>
+  );
+}
+
+/** Стопка из двух книг. */
+function BookStack({ cx, baseY }: { cx: number; baseY: number }) {
+  return (
+    <g>
+      <rect x={cx - 22} y={baseY - 11} width={44} height={11} rx={1.5} fill="#dc2626" stroke={SHADOW} />
+      <rect x={cx - 20} y={baseY - 9} width={40} height={7} fill="#fefce8" />
+      <rect x={cx - 22} y={baseY - 11} width={4} height={11} fill="#991b1b" />
+      <rect x={cx - 18} y={baseY - 22} width={36} height={11} rx={1.5} fill="#2563eb" stroke={SHADOW} />
+      <rect x={cx - 16} y={baseY - 20} width={32} height={7} fill="#fefce8" />
+      <rect x={cx - 18} y={baseY - 22} width={4} height={11} fill="#1e40af" />
+      <rect x={cx + 6} y={baseY - 22} width={4} height={9} fill="#facc15" />
+      <path d={`M ${cx + 6} ${baseY - 13} L ${cx + 8} ${baseY - 11} L ${cx + 10} ${baseY - 13} Z`} fill="#facc15" />
+    </g>
+  );
+}
+
+/** Новогодняя кружка с паром. */
+function MugArt({ cx, baseY }: { cx: number; baseY: number }) {
+  return (
+    <g>
+      <path
+        d={`M ${cx + 11} ${baseY - 18} C ${cx + 21} ${baseY - 18}, ${cx + 21} ${baseY - 8}, ${cx + 11} ${baseY - 8}`}
+        fill="none"
+        stroke="#dc2626"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <rect x={cx - 11} y={baseY - 22} width={22} height={22} rx={3} fill="#dc2626" stroke={SHADOW} />
+      <rect x={cx - 11} y={baseY - 16} width={22} height={5} fill="#f8fafc" />
+      <circle cx={cx - 4} cy={baseY - 13.5} r={1.2} fill="#f8fafc" />
+      <circle cx={cx + 1} cy={baseY - 13.5} r={1.2} fill="#f8fafc" />
+      <ellipse cx={cx} cy={baseY - 22} rx={11} ry={3} fill="#991b1b" />
+      <ellipse cx={cx} cy={baseY - 22} rx={8} ry={2} fill="#451a03" />
+      <path
+        d={`M ${cx - 4} ${baseY - 25} q 2 -2.5 0 -5 M ${cx + 4} ${baseY - 25} q -2 -2.5 0 -5`}
+        fill="none"
+        stroke="#cbd5e1"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        opacity="0.9"
+      />
+    </g>
+  );
+}
+
+/** Новогодний носок. */
+function SockArt({ cx, baseY }: { cx: number; baseY: number }) {
+  return (
+    <g>
+      <rect x={cx - 13} y={baseY - 22} width={14} height={14} fill="#dc2626" />
+      <ellipse cx={cx + 1} cy={baseY - 6} rx={11} ry={6.5} fill="#dc2626" />
+      <ellipse cx={cx + 7} cy={baseY - 6} rx={4.5} ry={5.5} fill="#f8fafc" />
+      <circle cx={cx - 11} cy={baseY - 9} r={3} fill="#f8fafc" />
+      <rect x={cx - 13} y={baseY - 30} width={20} height={8} rx={2} fill="#f8fafc" stroke={SHADOW} />
+      <rect x={cx - 13} y={baseY - 25} width={20} height={3} fill="#dc2626" />
+    </g>
+  );
+}
+
+/** Зажжённая свеча. */
+function CandleArt({ cx, baseY }: { cx: number; baseY: number }) {
+  return (
+    <g>
+      <circle cx={cx} cy={baseY - 25} r={9} fill="#fde047" opacity="0.2" />
+      <rect x={cx - 8} y={baseY - 18} width={16} height={18} rx={2} fill="#fef3c7" stroke={SHADOW} />
+      <ellipse cx={cx} cy={baseY - 18} rx={8} ry={2.5} fill="#fde68a" />
+      <line x1={cx} y1={baseY - 18} x2={cx} y2={baseY - 21} stroke="#451a03" strokeWidth="1.5" />
+      <ellipse cx={cx} cy={baseY - 25} rx={4} ry={5.5} fill="#f59e0b" />
+      <ellipse cx={cx} cy={baseY - 24} rx={2} ry={3} fill="#fef08a" />
+      <circle cx={cx - 3} cy={baseY - 10} r={1.8} fill="#16a34a" />
+      <circle cx={cx + 3} cy={baseY - 10} r={1.8} fill="#16a34a" />
+      <circle cx={cx} cy={baseY - 8} r={1.6} fill="#dc2626" />
+    </g>
+  );
+}
+
+/** Куча новогоднего печенья. */
+function CookiePile({ cx, baseY }: { cx: number; baseY: number }) {
+  const cookies: { dx: number; dy: number; r: number; rot: number }[] = [
+    { dx: -15, dy: -1, r: 7, rot: 10 },
+    { dx: 15, dy: -1, r: 7, rot: -12 },
+    { dx: 0, dy: 0, r: 7.5, rot: 0 },
+    { dx: -7, dy: -11, r: 6.5, rot: 20 },
+    { dx: 8, dy: -10, r: 6.5, rot: -20 },
+    { dx: 0, dy: -19, r: 6, rot: 5 },
+  ];
+  return (
+    <g>
+      {cookies.map((c, i) => (
+        <g key={i} transform={`translate(${cx + c.dx} ${baseY + c.dy}) rotate(${c.rot})`}>
+          <circle r={c.r} fill="#d97706" stroke="#92400e" strokeWidth="1" />
+          <circle r={c.r * 0.62} fill="none" stroke="#fef3c7" strokeWidth="1.4" strokeDasharray="2.5 2" opacity="0.9" />
+          <circle cx={-c.r * 0.25} cy={-c.r * 0.1} r={1.1} fill="#451a03" />
+          <circle cx={c.r * 0.3} cy={c.r * 0.2} r={1.1} fill="#451a03" />
+          <circle cx={c.r * 0.05} cy={-c.r * 0.35} r={1} fill="#dc2626" />
+        </g>
+      ))}
+    </g>
+  );
+}
+
+/** Наполнение открытого подарка — то, что положил Санта. */
+function FillingContent({ filling, cx, baseY }: { filling: WrapFilling; cx: number; baseY: number }) {
+  switch (filling) {
+    case "toys":
+      return <ToysPile cx={cx} baseY={baseY} />;
+    case "champagne":
+      return <ChampagneBottle cx={cx} baseY={baseY} />;
+    case "book":
+      return <BookStack cx={cx} baseY={baseY} />;
+    case "mug":
+      return <MugArt cx={cx} baseY={baseY} />;
+    case "socks":
+      return <SockArt cx={cx} baseY={baseY} />;
+    case "candle":
+      return <CandleArt cx={cx} baseY={baseY} />;
+    case "cookies":
+      return <CookiePile cx={cx} baseY={baseY} />;
+    case "candy":
+    default:
+      return <CandyPile cx={cx} baseY={baseY} />;
+  }
+}
+
 /** Бантик отдельным элементом — его можно положить рядом с открытой коробкой. */
 function Bow({ pal, transform }: { pal: Palette; transform: string }) {
   return (
@@ -100,23 +282,31 @@ function Box({
   variant,
   mystery,
   opened,
+  filling,
 }: {
   pal: Palette;
   width: number;
   variant: number;
   mystery: boolean;
   opened: boolean;
+  filling: WrapFilling;
 }) {
   const bh = BOX_HEIGHTS[Math.abs(variant) % BOX_HEIGHTS.length];
   const h = 36 + bh;
   const cy = 36 + bh / 2;
 
   if (opened) {
-    // Крышка съехала вправо, бантик лежит рядом, из коробки видны конфеты.
+    // Крышка съехала вправо, бантик лежит рядом, внутри — наполнение Санты.
     const wideH = Math.max(h, 104);
+    const top = 6;
     return (
-      <svg viewBox={`-8 0 178 ${wideH}`} width={width * 1.5} height={(width * 1.5 * wideH) / 178} aria-hidden>
-        <CandyPile cx={50} baseY={30} />
+      <svg
+        viewBox={`-8 ${-top} 178 ${wideH + top}`}
+        width={width * 1.5}
+        height={(width * 1.5 * (wideH + top)) / 178}
+        aria-hidden
+      >
+        <FillingContent filling={filling} cx={50} baseY={30} />
         {/* коробка без крышки, видно тёмное нутро */}
         <rect x="0" y="34" width="100" height={bh + 2} rx="2" fill={pal.box} />
         <rect x="74" y="34" width="26" height={bh + 2} fill="#000" opacity="0.12" />
@@ -143,7 +333,7 @@ function Box({
       {/* коробка */}
       <rect x="0" y="34" width="100" height={bh + 2} rx="2" fill={pal.box} />
       <rect x="74" y="34" width="26" height={bh + 2} fill="#000" opacity="0.12" />
-      {!mystery && <rect x="0" y={cy - 5} width="100" height="10" fill={pal.ribbon} />}
+      {!mystery && <rect x="0" y={cy - 5} width={100} height="10" fill={pal.ribbon} />}
       {/* крышка */}
       <rect x="-5" y="24" width="110" height="14" rx="2" fill={pal.lid} />
       <rect x="-5" y="35" width="110" height="3" fill="#000" opacity="0.15" />
@@ -171,7 +361,17 @@ function Box({
   );
 }
 
-function Bag({ pal, width, opened }: { pal: Palette; width: number; opened: boolean }) {
+function Bag({
+  pal,
+  width,
+  opened,
+  filling,
+}: {
+  pal: Palette;
+  width: number;
+  opened: boolean;
+  filling: WrapFilling;
+}) {
   const flake = [0, 60, 120];
   // Белая бумага; у белого пакета — цвета ленты, чтобы не сливалась.
   const tissue = pal.box === WRAP_COLORS.white.box ? pal.ribbon : "#ffffff";
@@ -182,8 +382,8 @@ function Bag({ pal, width, opened }: { pal: Palette; width: number; opened: bool
           {/* ручки опущены вниз по стенкам пакета */}
           <path d="M32 44 C 20 58, 18 74, 26 84" fill="none" stroke={pal.lid} strokeWidth="4.5" strokeLinecap="round" />
           <path d="M58 44 C 70 58, 72 74, 64 84" fill="none" stroke={pal.lid} strokeWidth="4.5" strokeLinecap="round" />
-          {/* конфеты горкой из пакета */}
-          <CandyPile cx={50} baseY={34} />
+          {/* наполнение горкой из пакета */}
+          <FillingContent filling={filling} cx={50} baseY={34} />
           {/* сам пакет */}
           <path d="M16 38 L84 38 L92 110 L8 110 Z" fill={pal.box} stroke={SHADOW} strokeLinejoin="round" />
           <path d="M66 38 L84 38 L92 110 L71 110 Z" fill="#000" opacity="0.12" />

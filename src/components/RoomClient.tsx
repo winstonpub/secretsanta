@@ -6,18 +6,23 @@ import AuthModal from "@/components/AuthModal";
 import Avatar from "@/components/Avatar";
 import GiftArt from "@/components/GiftArt";
 import InviteModal from "@/components/InviteModal";
-import ProfilePicker, { type Profile } from "@/components/ProfilePicker";
+import ProfilePicker from "@/components/ProfilePicker";
+import SantaRoulette from "@/components/SantaRoulette";
 import TreeScene from "@/components/TreeScene";
 import {
   AVATARS,
   COLORS,
+  DEFAULT_FILLING,
   WRAP_COLORS,
   WRAP_COLOR_KEYS,
+  WRAP_FILLINGS,
+  WRAP_FILLING_KEYS,
   isSameParticipant,
   type GiftState,
   type PublicParticipant,
   type RoomState,
   type WrapColor,
+  type WrapFilling,
   type WrapStyle,
 } from "@/lib/constants";
 import AdminPanel from "./AdminPanel";
@@ -34,9 +39,11 @@ export default function RoomClient({ code }: { code: string }) {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [selected, setSelected] = useState<number | null>(null);
-  const [addingUser, setAddingUser] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteUrl, setInviteUrl] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
 
   const load = useCallback(async () => {
     const res = await roomApi.getRoomState(code);
@@ -146,43 +153,103 @@ export default function RoomClient({ code }: { code: string }) {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
-      <header className="relative z-10 mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
+      <header className="relative z-10 mb-4">
+        <div className="flex items-center justify-between gap-3">
           <Link href="/" className="text-sm text-blue-200 hover:underline">← Тайный Санта</Link>
-          <h1 className="text-3xl font-black">{room.name}</h1>
-          <div className="mt-2 flex flex-wrap gap-2">
+          {isOwner ? (
+            <button className="btn btn-red" onClick={() => setInviteOpen(true)}>
+              🔗 Пригласить
+            </button>
+          ) : (
+            <span />
+          )}
+        </div>
+        <div className="mt-2 text-center">
+          <div className="flex items-center justify-center gap-2">
+            {editingName ? (
+              <form
+                className="flex w-full max-w-md items-center gap-2"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!nameDraft.trim() || renameBusy) return;
+                  setRenameBusy(true);
+                  const ok = await act({ action: "rename", name: nameDraft.trim() });
+                  setRenameBusy(false);
+                  if (ok) {
+                    setEditingName(false);
+                    flash("Название комнаты обновлено");
+                  }
+                }}
+              >
+                <input
+                  className="input !py-1.5 text-center text-2xl font-black"
+                  value={nameDraft}
+                  maxLength={60}
+                  autoFocus
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  aria-label="Новое название комнаты"
+                />
+                <button className="btn btn-green shrink-0 !px-3 !py-1.5" disabled={renameBusy || !nameDraft.trim()}>
+                  ✓
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost shrink-0 !px-3 !py-1.5"
+                  onClick={() => setEditingName(false)}
+                  aria-label="Отмена"
+                >
+                  ✕
+                </button>
+              </form>
+            ) : (
+              <>
+                <h1 className="text-3xl font-black tracking-tight sm:text-4xl">{room.name}</h1>
+                {isOwner && (
+                  <button
+                    type="button"
+                    title="Переименовать комнату"
+                    aria-label="Переименовать комнату"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-lg text-white transition hover:bg-white/30"
+                    onClick={() => {
+                      setNameDraft(room.name);
+                      setEditingName(true);
+                    }}
+                  >
+                    ✏️
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
             {owner && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-300/20 px-3 py-1 text-sm font-semibold text-amber-50 ring-1 ring-amber-300/60">
-                <span aria-hidden>👑</span>
-                <span className="font-normal text-amber-100/80">Организатор:</span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-amber-300/30 px-5 py-2 text-base font-bold text-amber-50 shadow-lg ring-2 ring-amber-300/70 sm:text-lg">
+                <span aria-hidden className="text-xl">👑</span>
+                <span className="font-normal text-amber-100/90">Организатор:</span>
                 {owner.name}
               </span>
             )}
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-sm font-semibold text-white ring-1 ring-white/35">
-              <span aria-hidden>👥</span>
-              <span className="font-normal text-blue-100/80">Участников:</span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-5 py-2 text-base font-bold text-white shadow-lg ring-2 ring-white/50 sm:text-lg">
+              <span aria-hidden className="text-xl">👥</span>
+              <span className="font-normal text-blue-100/90">Участников:</span>
               {participants.length}
             </span>
             {room.budget && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/20 px-3 py-1 text-sm font-semibold text-emerald-50 ring-1 ring-emerald-300/60">
-                <span aria-hidden>💰</span>
-                <span className="font-normal text-emerald-100/80">Бюджет:</span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400/30 px-5 py-2 text-base font-bold text-emerald-50 shadow-lg ring-2 ring-emerald-300/70 sm:text-lg">
+                <span aria-hidden className="text-xl">💰</span>
+                <span className="font-normal text-emerald-100/90">Бюджет:</span>
                 {room.budget}
+                {/₽/.test(room.budget) ? "" : " ₽"}
               </span>
             )}
             {room.eventDate && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-400/20 px-3 py-1 text-sm font-semibold text-sky-50 ring-1 ring-sky-300/60">
-                <span aria-hidden>📅</span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-sky-400/30 px-5 py-2 text-base font-bold text-sky-50 shadow-lg ring-2 ring-sky-300/70 sm:text-lg">
+                <span aria-hidden className="text-xl">📅</span>
                 {new Date(room.eventDate).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}
               </span>
             )}
           </div>
         </div>
-        {isOwner && (
-          <button className="btn btn-red" onClick={() => setInviteOpen(true)}>
-            🔗 Пригласить
-          </button>
-        )}
       </header>
 
       {error && (
@@ -216,7 +283,13 @@ export default function RoomClient({ code }: { code: string }) {
           ) : (
             <>
               {myGift?.sent && <IncomingGift gift={myGift} act={act} flash={flash} />}
-              <TargetCard key={myTarget?.assignmentId ?? "none"} state={state} act={act} flash={flash} />
+              <TargetWithRoulette
+                key={myTarget?.assignmentId ?? "none"}
+                code={code}
+                state={state}
+                act={act}
+                flash={flash}
+              />
               <ProfileCard
                 me={me}
                 participants={participants}
@@ -228,28 +301,7 @@ export default function RoomClient({ code }: { code: string }) {
           )}
 
           <section className="card space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-lg font-bold">Участники ({participants.length})</h2>
-              {isOwner && (
-                <button
-                  type="button"
-                  className="btn btn-ghost !px-3 !py-1 text-sm"
-                  onClick={() => setAddingUser((v) => !v)}
-                >
-                  {addingUser ? "Закрыть" : "➕ Добавить участника"}
-                </button>
-              )}
-            </div>
-            {isOwner && addingUser && (
-              <AddParticipantForm
-                participants={participants}
-                act={act}
-                onAdded={() => {
-                  flash("Участник добавлен");
-                  setAddingUser(false);
-                }}
-              />
-            )}
+            <h2 className="text-lg font-bold">Участники ({participants.length})</h2>
             <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {participants.map((p) => (
                 <li key={p.id} className="flex items-center gap-2 rounded-xl bg-slate-50 p-2">
@@ -292,10 +344,6 @@ function GiftInfo({
   hiddenWishlist: boolean;
   onClose: () => void;
 }) {
-  const look =
-    gift?.sent && gift.style && gift.color
-      ? `${gift.style === "bag" ? "подарочный пакет" : "подарок с бантом"}, ${WRAP_COLORS[gift.color].label.toLowerCase()}`
-      : null;
   return (
     <div className="card mx-auto mt-4 max-w-md">
       <div className="flex items-start gap-3">
@@ -303,11 +351,13 @@ function GiftInfo({
         <div className="min-w-0 flex-1">
           <div className="font-bold">Подарок для {p.name}</div>
           <div className="text-sm text-slate-600">
-            {gift?.sent
-              ? `🎉 Санта уже отправил подарок${look ? ` — ${look}` : ""}!`
-              : gift?.assigned
-                ? "⏳ Санта назначен, подарок ещё не отправлен"
-                : "❔ Санта ещё не назначен"}
+            {gift?.accepted
+              ? "🍬 Подарок получен"
+              : gift?.sent
+                ? "🎉 Санта отправил подарок"
+                : gift?.assigned
+                  ? "⏳ Санта назначен, подарок ещё не отправлен"
+                  : "❔ Санта ещё не назначен"}
           </div>
           {hiddenWishlist ? (
             <p className="mt-2 rounded-lg bg-slate-100 p-2 text-sm text-slate-600">
@@ -366,57 +416,16 @@ function JoinCard({
   );
 }
 
-function AddParticipantForm({
-  participants,
-  act,
-  onAdded,
-}: {
-  participants: PublicParticipant[];
-  act: Act;
-  onAdded: () => void;
-}) {
-  const [profile, setProfile] = useState<Profile>(() => ({
-    name: "",
-    avatar: AVATARS[participants.length % AVATARS.length],
-    color: COLORS[participants.length % COLORS.length],
-  }));
-  const [busy, setBusy] = useState(false);
-  const isDuplicate =
-    Boolean(profile.name.trim()) && participants.some((p) => isSameParticipant(p, profile));
-
-  return (
-    <form
-      className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (isDuplicate) return;
-        setBusy(true);
-        const ok = await act({ action: "add", ...profile });
-        setBusy(false);
-        if (ok) onAdded();
-      }}
-    >
-      <ProfilePicker value={profile} onChange={setProfile} />
-      {isDuplicate && (
-        <p className="text-sm font-medium text-red-600">
-          Такой пользователь уже есть в комнате — выберите другой аватар, цвет или имя.
-        </p>
-      )}
-      <button className="btn btn-green w-full" disabled={busy || !profile.name.trim() || isDuplicate}>
-        {busy ? "Добавляем..." : "Добавить в комнату"}
-      </button>
-    </form>
-  );
-}
-
 function WrapPicker({
   style,
   color,
+  filling,
   onChange,
 }: {
   style: WrapStyle;
   color: WrapColor;
-  onChange: (style: WrapStyle, color: WrapColor) => void;
+  filling: WrapFilling;
+  onChange: (style: WrapStyle, color: WrapColor, filling: WrapFilling) => void;
 }) {
   const options: { value: WrapStyle; label: string }[] = [
     { value: "bag", label: "Пакет" },
@@ -431,7 +440,7 @@ function WrapPicker({
             key={o.value}
             type="button"
             aria-pressed={style === o.value}
-            onClick={() => onChange(o.value, color)}
+            onClick={() => onChange(o.value, color, filling)}
             className={`flex flex-col items-center gap-1 rounded-xl border-2 p-2 transition ${
               style === o.value ? "border-red-500 bg-red-50" : "border-slate-200 hover:border-slate-300"
             }`}
@@ -454,12 +463,38 @@ function WrapPicker({
             title={WRAP_COLORS[c].label}
             aria-label={WRAP_COLORS[c].label}
             aria-pressed={color === c}
-            onClick={() => onChange(style, c)}
+            onClick={() => onChange(style, c, filling)}
             className={`h-8 w-8 rounded-full border border-slate-300 transition ${
               color === c ? "ring-2 ring-slate-900 ring-offset-2" : "hover:scale-110"
             }`}
             style={{ background: WRAP_COLORS[c].box }}
           />
+        ))}
+      </div>
+      <div className="mb-1.5 mt-3 text-xs font-medium text-slate-500">
+        Наполнение: {WRAP_FILLINGS[filling].label.toLowerCase()} — будет внутри после принятия
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {WRAP_FILLING_KEYS.map((f) => (
+          <button
+            key={f}
+            type="button"
+            title={WRAP_FILLINGS[f].hint}
+            aria-label={WRAP_FILLINGS[f].label}
+            aria-pressed={filling === f}
+            onClick={() => onChange(style, color, f)}
+            className={`flex flex-col items-center gap-0.5 rounded-xl border-2 px-1 py-2 transition ${
+              filling === f ? "border-red-500 bg-red-50" : "border-slate-200 hover:border-slate-300"
+            }`}
+          >
+            <span className="text-2xl" aria-hidden>
+              {WRAP_FILLINGS[f].emoji}
+            </span>
+            <span className="text-xs font-semibold">{WRAP_FILLINGS[f].label}</span>
+            <span className="px-1 text-center text-[10px] leading-tight text-slate-500">
+              {WRAP_FILLINGS[f].hint}
+            </span>
+          </button>
         ))}
       </div>
     </div>
@@ -486,7 +521,13 @@ function IncomingGift({
     >
       <div className="flex items-start gap-3">
         <div className="shrink-0">
-          <GiftArt kind={gift.style ?? "box"} color={gift.color ?? "red"} width={58} opened={opened} />
+          <GiftArt
+            kind={gift.style ?? "box"}
+            color={gift.color ?? "red"}
+            width={58}
+            opened={opened}
+            filling={gift.filling ?? "candy"}
+          />
         </div>
         <div className="min-w-0 flex-1">
           <div
@@ -498,7 +539,7 @@ function IncomingGift({
           </div>
           <p className="mt-1 text-sm text-slate-700">
             {opened
-              ? "Подарок принят — он открыт под ёлкой, внутри конфеты 🍬"
+              ? "Подарок принят"
               : "Кто-то из комнаты отправил вам подарок. Он ждёт вас под ёлкой."}
           </p>
         </div>
@@ -525,11 +566,54 @@ function IncomingGift({
   );
 }
 
+/**
+ * Первое знакомство с назначением — через рулетку: участники прокручиваются
+ * и останавливаются на том, кого выбрала жеребьёвка (или назначил создатель).
+ * Дальше показывается обычная карточка подопечного.
+ */
+function TargetWithRoulette({
+  code,
+  state,
+  act,
+  flash,
+}: {
+  code: string;
+  state: RoomState;
+  act: Act;
+  flash: (m: string) => void;
+}) {
+  const t = state.myTarget;
+  const [show, setShow] = useState(() => {
+    if (!t || typeof window === "undefined") return false;
+    try {
+      return !window.localStorage.getItem(`ss_roulette_${code}_${t.assignmentId}`);
+    } catch {
+      return true;
+    }
+  });
+  if (!t) {
+    return <TargetCard state={state} act={act} flash={flash} />;
+  }
+  if (show) {
+    const pool = state.participants.filter((p) => p.id !== state.me?.id);
+    return (
+      <SantaRoulette
+        participants={pool.length > 0 ? pool : [t.recipient]}
+        target={t.recipient}
+        storageKey={`ss_roulette_${code}_${t.assignmentId}`}
+        onDone={() => setShow(false)}
+      />
+    );
+  }
+  return <TargetCard state={state} act={act} flash={flash} />;
+}
+
 function TargetCard({ state, act, flash }: { state: RoomState; act: Act; flash: (m: string) => void }) {
   const t = state.myTarget;
-  const [wrap, setWrap] = useState<{ style: WrapStyle; color: WrapColor }>(() => ({
+  const [wrap, setWrap] = useState<{ style: WrapStyle; color: WrapColor; filling: WrapFilling }>(() => ({
     style: t?.style ?? "box",
     color: t?.color ?? "red",
+    filling: t?.filling ?? DEFAULT_FILLING,
   }));
   // После отправки карточка сворачивается в компактную строку.
   const [open, setOpen] = useState(() => !t?.sent);
@@ -548,10 +632,10 @@ function TargetCard({ state, act, flash }: { state: RoomState; act: Act; flash: 
     );
   }
 
-  async function changeWrap(style: WrapStyle, color: WrapColor) {
+  async function changeWrap(style: WrapStyle, color: WrapColor, filling: WrapFilling) {
     const prev = wrap;
-    setWrap({ style, color });
-    if (!(await act({ action: "wrap", style, color }))) setWrap(prev);
+    setWrap({ style, color, filling });
+    if (!(await act({ action: "wrap", style, color, filling }))) setWrap(prev);
   }
 
   const hidden = state.room.wishlistVisibility === "santa";
@@ -603,7 +687,7 @@ function TargetCard({ state, act, flash }: { state: RoomState; act: Act; flash: 
           {t.recipient.wishlist || "Пока ничего не написано — сюрприз!"}
         </p>
       </div>
-      <WrapPicker style={wrap.style} color={wrap.color} onChange={changeWrap} />
+      <WrapPicker style={wrap.style} color={wrap.color} filling={wrap.filling} onChange={changeWrap} />
       {t.sent && open && (
         <button
           type="button"
@@ -651,11 +735,12 @@ function ProfileCard({
   flash: (m: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [look, setLook] = useState({ avatar: me.avatar, color: me.color });
+  const [profile, setProfile] = useState({ name: me.name, avatar: me.avatar, color: me.color });
   const [wishlist, setWishlist] = useState(me.wishlist);
   const isDuplicate =
     editing &&
-    participants.some((p) => p.id !== me.id && isSameParticipant(p, { name: me.name, ...look }));
+    Boolean(profile.name.trim()) &&
+    participants.some((p) => p.id !== me.id && isSameParticipant(p, profile));
 
   return (
     <section className="card space-y-3">
@@ -665,16 +750,10 @@ function ProfileCard({
           <h2 className="text-lg font-bold">{me.name}</h2>
         </div>
         <button className="text-sm text-blue-600 hover:underline" onClick={() => setEditing((v) => !v)}>
-          {editing ? "Закрыть" : "✏️ Аватар и цвет"}
+          {editing ? "Закрыть" : "✏️ Редактировать"}
         </button>
       </div>
-      {editing && (
-        <ProfilePicker
-          lockName
-          value={{ name: me.name, ...look }}
-          onChange={(p) => setLook({ avatar: p.avatar, color: p.color })}
-        />
-      )}
+      {editing && <ProfilePicker value={profile} onChange={setProfile} />}
       {isDuplicate && <p className="text-sm font-medium text-red-600">{DUPLICATE_HINT}</p>}
       <div>
         <div className="mb-1 text-sm font-semibold text-slate-600">Мои пожелания для Санты</div>
@@ -691,9 +770,9 @@ function ProfileCard({
       </div>
       <button
         className="btn btn-red w-full"
-        disabled={isDuplicate}
+        disabled={isDuplicate || (editing && !profile.name.trim())}
         onClick={async () => {
-          if (await act({ action: "profile", wishlist, ...(editing ? look : {}) })) {
+          if (await act({ action: "profile", wishlist, ...(editing ? profile : {}) })) {
             setEditing(false);
             flash("Сохранено");
           }

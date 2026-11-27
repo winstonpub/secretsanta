@@ -278,6 +278,7 @@ export async function roomAction(
           p_wishlist: String(payload.wishlist ?? ""),
           p_avatar: (payload.avatar as string | undefined) ?? null,
           p_color: (payload.color as string | undefined) ?? null,
+          p_name: (payload.name as string | undefined) ?? null,
         }),
       );
     case "wrap":
@@ -286,6 +287,14 @@ export async function roomAction(
           p_code: code,
           p_style: payload.style,
           p_color: payload.color,
+          p_filling: (payload.filling as string | undefined) ?? null,
+        }),
+      );
+    case "rename":
+      return voidResult(
+        await callRpc("rename_room", {
+          p_code: code,
+          p_name: String(payload.name ?? ""),
         }),
       );
     case "sent":
